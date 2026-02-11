@@ -42,3 +42,5 @@ prisma/migrations/
 contracts/*.flat.sol
 contracts/solc-input.json
 deployment.json
+
+.vercel

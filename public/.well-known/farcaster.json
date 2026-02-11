@@ -1,0 +1,29 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "frame": {
+    "version": "1",
+    "name": "ShadowVote",
+    "iconUrl": "https://shadowvote.vercel.app/icon.png",
+    "homeUrl": "https://shadowvote.vercel.app",
+    "splashImageUrl": "https://shadowvote.vercel.app/splash.png",
+    "splashBackgroundColor": "#0a0a0f",
+    "primaryCategory": "games",
+    "tags": ["social-deduction", "mafia", "web3", "multiplayer"],
+    "subtitle": "Social Deduction",
+    "description": "Find the impostors! A multiplayer social deduction game with onchain reputation.",
+    "screenshotUrls": [
+      "https://shadowvote.vercel.app/screenshot1.png",
+      "https://shadowvote.vercel.app/screenshot2.png",
+      "https://shadowvote.vercel.app/screenshot3.png"
+    ],
+    "heroImageUrl": "https://shadowvote.vercel.app/hero.png",
+    "tagline": "Find the impostors",
+    "ogTitle": "ShadowVote",
+    "ogDescription": "Social deduction game with onchain reputation",
+    "ogImageUrl": "https://shadowvote.vercel.app/og-image.png"
+  }
+}

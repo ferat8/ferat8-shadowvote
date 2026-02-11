@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  hostWallet  String
+  status      String   @default("lobby") // lobby, night, day, voting, ended
+  phase       Int      @default(0) // round number
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  players     Player[]
+  actions     Action[]
+  votes       Vote[]
+  messages    Message[]
+  gameResult  GameResult?
+}
+
+model Player {
+  id          String   @id @default(cuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  wallet      String
+  nickname    String
+  role        String?  // impostor, detective, citizen
+  isAlive     Boolean  @default(true)
+  isReady     Boolean  @default(false)
+  isHost      Boolean  @default(false)
+  joinedAt    DateTime @default(now())
+  actions     Action[]
+  votes       Vote[]
+  messages    Message[]
+
+  @@unique([roomId, wallet])
+  @@index([roomId])
+}
+
+model Action {
+  id          String   @id @default(cuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  phase       Int
+  actionType  String   // kill, investigate
+  targetId    String?
+  result      String?  // for detective: impostor/innocent
+  createdAt   DateTime @default(now())
+
+  @@unique([roomId, playerId, phase])
+  @@index([roomId, phase])
+}
+
+model Vote {
+  id          String   @id @default(cuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  phase       Int
+  targetId    String?  // null = skip vote
+  createdAt   DateTime @default(now())
+
+  @@unique([roomId, playerId, phase])
+  @@index([roomId, phase])
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  content     String
+  phase       Int
+  createdAt   DateTime @default(now())
+
+  @@index([roomId, phase])
+}
+
+model GameResult {
+  id          String   @id @default(cuid())
+  roomId      String   @unique
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  gameId      String   @unique // bytes32 for onchain
+  winnerTeam  String   // impostors, citizens
+  playerResults String // JSON: [{ wallet, role, won, repDelta }]
+  createdAt   DateTime @default(now())
+}
+
+model ClaimLog {
+  id          String   @id @default(cuid())
+  gameId      String
+  wallet      String
+  txHash      String?
+  createdAt   DateTime @default(now())
+
+  @@unique([gameId, wallet])
+}

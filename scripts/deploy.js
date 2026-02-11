@@ -1,177 +1,86 @@
-const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const { createWalletClient, createPublicClient, http, parseEther } = require("viem");
+const solc = require("solc");
+const { createWalletClient, createPublicClient, http, parseEther, encodeAbiParameters } = require("viem");
 const { privateKeyToAccount } = require("viem/accounts");
 const { baseSepolia } = require("viem/chains");
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY;
 
 if (!PRIVATE_KEY) {
   console.error("PRIVATE_KEY not set");
   process.exit(1);
 }
 
-async function main() {
-  console.log("Compiling ShadowReputation contract...");
-
-  // Read contract source
-  const contractPath = path.join(__dirname, "../contracts/src/ShadowReputation.sol");
-  const contractSource = fs.readFileSync(contractPath, "utf8");
-
-  // Read OpenZeppelin contracts
-  const ozPath = path.join(__dirname, "../node_modules/@openzeppelin/contracts");
-
-  // Create flattened contract
-  const flattenedSource = `
-// SPDX-License-Identifier: MIT
+// Flattened contract source
+const SOURCE = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// OpenZeppelin Contracts
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address) {
-        return msg.sender;
-    }
-    function _msgData() internal view virtual returns (bytes calldata) {
-        return msg.data;
-    }
-    function _contextSuffixLength() internal view virtual returns (uint256) {
-        return 0;
-    }
-}
-
-abstract contract Ownable is Context {
-    address private _owner;
-    error OwnableUnauthorizedAccount(address account);
-    error OwnableInvalidOwner(address owner);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-    
-    constructor(address initialOwner) {
-        if (initialOwner == address(0)) revert OwnableInvalidOwner(address(0));
-        _transferOwnership(initialOwner);
-    }
-    
-    modifier onlyOwner() {
-        _checkOwner();
-        _;
-    }
-    
-    function owner() public view virtual returns (address) {
-        return _owner;
-    }
-    
-    function _checkOwner() internal view virtual {
-        if (owner() != _msgSender()) revert OwnableUnauthorizedAccount(_msgSender());
-    }
-    
-    function renounceOwnership() public virtual onlyOwner {
-        _transferOwnership(address(0));
-    }
-    
-    function transferOwnership(address newOwner) public virtual onlyOwner {
-        if (newOwner == address(0)) revert OwnableInvalidOwner(address(0));
-        _transferOwnership(newOwner);
-    }
-    
-    function _transferOwnership(address newOwner) internal virtual {
-        address oldOwner = _owner;
-        _owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
-    }
-}
-
-library ECDSA {
-    error ECDSAInvalidSignature();
-    error ECDSAInvalidSignatureLength(uint256 length);
-    error ECDSAInvalidSignatureS(bytes32 s);
-    
-    function tryRecover(bytes32 hash, bytes memory signature) internal pure returns (address, bytes32, bytes32) {
-        if (signature.length == 65) {
-            bytes32 r;
-            bytes32 s;
-            uint8 v;
-            assembly { r := mload(add(signature, 0x20)) s := mload(add(signature, 0x40)) v := byte(0, mload(add(signature, 0x60))) }
-            return (ecrecover(hash, v, r, s), r, s);
-        }
-        return (address(0), 0, 0);
-    }
-    
-    function recover(bytes32 hash, bytes memory signature) internal pure returns (address) {
-        (address recovered,,) = tryRecover(hash, signature);
-        if (recovered == address(0)) revert ECDSAInvalidSignature();
-        return recovered;
-    }
-}
-
-library MessageHashUtils {
-    function toTypedDataHash(bytes32 domainSeparator, bytes32 structHash) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked("\\x19\\x01", domainSeparator, structHash));
-    }
-}
-
-abstract contract EIP712 {
-    bytes32 private constant TYPE_HASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 private immutable _cachedDomainSeparator;
-    uint256 private immutable _cachedChainId;
-    address private immutable _cachedThis;
-    bytes32 private immutable _hashedName;
-    bytes32 private immutable _hashedVersion;
-    string private _name;
-    string private _version;
-    
-    constructor(string memory name_, string memory version_) {
-        _name = name_;
-        _version = version_;
-        _hashedName = keccak256(bytes(name_));
-        _hashedVersion = keccak256(bytes(version_));
-        _cachedChainId = block.chainid;
-        _cachedDomainSeparator = _buildDomainSeparator();
-        _cachedThis = address(this);
-    }
-    
-    function _domainSeparatorV4() internal view returns (bytes32) {
-        if (address(this) == _cachedThis && block.chainid == _cachedChainId) {
-            return _cachedDomainSeparator;
-        }
-        return _buildDomainSeparator();
-    }
-    
-    function _buildDomainSeparator() private view returns (bytes32) {
-        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, block.chainid, address(this)));
-    }
-    
-    function _hashTypedDataV4(bytes32 structHash) internal view virtual returns (bytes32) {
-        return MessageHashUtils.toTypedDataHash(_domainSeparatorV4(), structHash);
-    }
-}
-
-contract ShadowReputation is Ownable, EIP712 {
-    using ECDSA for bytes32;
-    
+contract ShadowReputation {
     event ResultClaimed(address indexed user, bytes32 indexed gameId, int16 repDelta, uint8 outcome);
     event SignerUpdated(address indexed oldSigner, address indexed newSigner);
     
     bytes32 public constant CLAIM_TYPEHASH = keccak256("ClaimResult(address user,bytes32 gameId,uint8 outcome,int16 repDelta,uint256 expiry)");
     
+    address public owner;
     address public signer;
+    string public name = "ShadowReputation";
+    string public version = "1";
+    
     mapping(address => int256) public reputation;
     mapping(address => uint256) public gamesPlayed;
     mapping(address => uint256) public wins;
     mapping(bytes32 => mapping(address => bool)) public claimed;
     
-    constructor(address _signer) Ownable(msg.sender) EIP712("ShadowReputation", "1") {
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+    
+    constructor(address _signer) {
+        owner = msg.sender;
         signer = _signer;
     }
     
-    function claimResult(bytes32 gameId, uint8 outcome, int16 repDelta, uint256 expiry, bytes calldata signature) external {
+    function claimResult(
+        bytes32 gameId,
+        uint8 outcome,
+        int16 repDelta,
+        uint256 expiry,
+        bytes calldata signature
+    ) external {
         require(block.timestamp <= expiry, "Claim expired");
         require(!claimed[gameId][msg.sender], "Already claimed");
         
-        bytes32 structHash = keccak256(abi.encode(CLAIM_TYPEHASH, msg.sender, gameId, outcome, repDelta, expiry));
-        bytes32 digest = _hashTypedDataV4(structHash);
-        address recoveredSigner = ECDSA.recover(digest, signature);
-        require(recoveredSigner == signer, "Invalid signature");
+        bytes32 domainSeparator = keccak256(abi.encode(
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+            keccak256(bytes(name)),
+            keccak256(bytes(version)),
+            block.chainid,
+            address(this)
+        ));
+        
+        bytes32 structHash = keccak256(abi.encode(
+            CLAIM_TYPEHASH,
+            msg.sender,
+            gameId,
+            outcome,
+            repDelta,
+            expiry
+        ));
+        
+        bytes32 digest = keccak256(abi.encodePacked("\\x19\\x01", domainSeparator, structHash));
+        
+        require(signature.length == 65, "Invalid sig length");
+        bytes32 r; bytes32 s; uint8 v;
+        assembly {
+            r := calldataload(signature.offset)
+            s := calldataload(add(signature.offset, 32))
+            v := byte(0, calldataload(add(signature.offset, 64)))
+        }
+        
+        address recovered = ecrecover(digest, v, r, s);
+        require(recovered == signer, "Invalid signature");
         
         claimed[gameId][msg.sender] = true;
         reputation[msg.sender] += repDelta;
@@ -181,7 +90,7 @@ contract ShadowReputation is Ownable, EIP712 {
         emit ResultClaimed(msg.sender, gameId, repDelta, outcome);
     }
     
-    function getStats(address player) external view returns (int256 rep, uint256 games, uint256 winCount) {
+    function getStats(address player) external view returns (int256, uint256, uint256) {
         return (reputation[player], gamesPlayed[player], wins[player]);
     }
     
@@ -195,44 +104,51 @@ contract ShadowReputation is Ownable, EIP712 {
     }
     
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
-        return _domainSeparatorV4();
+        return keccak256(abi.encode(
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+            keccak256(bytes(name)),
+            keccak256(bytes(version)),
+            block.chainid,
+            address(this)
+        ));
     }
-}
-`;
+}`;
 
-  // Write flattened source
-  const flatPath = path.join(__dirname, "../contracts/ShadowReputation.flat.sol");
-  fs.writeFileSync(flatPath, flattenedSource);
+async function main() {
+  console.log("Compiling ShadowReputation...");
 
-  // Compile with solc
-  const solcInput = {
+  const input = {
     language: "Solidity",
     sources: {
-      "ShadowReputation.sol": { content: flattenedSource },
+      "ShadowReputation.sol": { content: SOURCE }
     },
     settings: {
       optimizer: { enabled: true, runs: 200 },
-      outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } },
-    },
+      outputSelection: {
+        "*": { "*": ["abi", "evm.bytecode.object"] }
+      }
+    }
   };
 
-  const inputPath = path.join(__dirname, "../contracts/solc-input.json");
-  fs.writeFileSync(inputPath, JSON.stringify(solcInput));
-
-  console.log("Running solc...");
-  const output = execSync(`npx solc --standard-json < "${inputPath}"`, { encoding: "utf8" });
-  const compiled = JSON.parse(output);
-
-  if (compiled.errors?.some((e) => e.severity === "error")) {
-    console.error("Compilation errors:", compiled.errors);
-    process.exit(1);
+  const output = JSON.parse(solc.compile(JSON.stringify(input)));
+  
+  if (output.errors) {
+    const errors = output.errors.filter(e => e.severity === "error");
+    if (errors.length > 0) {
+      console.error("Compilation errors:", errors);
+      process.exit(1);
+    }
   }
 
-  const contract = compiled.contracts["ShadowReputation.sol"]["ShadowReputation"];
-  const bytecode = "0x" + contract.evm.bytecode.object;
+  const contract = output.contracts["ShadowReputation.sol"]["ShadowReputation"];
   const abi = contract.abi;
+  const bytecode = "0x" + contract.evm.bytecode.object;
 
-  console.log("Deploying to Base Sepolia...");
+  console.log("Compilation successful!");
+  console.log("Bytecode size:", bytecode.length / 2, "bytes");
+
+  // Deploy
+  console.log("\nDeploying to Base Sepolia...");
 
   const account = privateKeyToAccount(PRIVATE_KEY);
   console.log("Deployer:", account.address);
@@ -248,35 +164,43 @@ contract ShadowReputation is Ownable, EIP712 {
     transport: http("https://sepolia.base.org"),
   });
 
-  // Check balance
   const balance = await publicClient.getBalance({ address: account.address });
-  console.log("Balance:", balance.toString(), "wei");
+  console.log("Balance:", (Number(balance) / 1e18).toFixed(6), "ETH");
 
   if (balance < parseEther("0.001")) {
-    console.error("Insufficient balance. Fund your wallet at https://www.alchemy.com/faucets/base-sepolia");
+    console.error("Insufficient balance. Fund at https://www.alchemy.com/faucets/base-sepolia");
+    console.log("Address:", account.address);
     process.exit(1);
   }
 
-  // Encode constructor args (signer = deployer)
-  const { encodeAbiParameters } = require("viem");
+  // Encode constructor args
   const constructorArgs = encodeAbiParameters(
     [{ type: "address" }],
     [account.address]
   );
+  
+  const deployData = bytecode + constructorArgs.slice(2);
 
-  // Deploy
-  const hash = await walletClient.deployContract({
-    abi,
-    bytecode,
-    args: [account.address],
+  console.log("Sending deployment transaction...");
+  const hash = await walletClient.sendTransaction({
+    data: deployData,
   });
 
-  console.log("Deploy tx:", hash);
+  console.log("Tx hash:", hash);
+  console.log("Waiting for confirmation...");
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  console.log("Contract deployed at:", receipt.contractAddress);
+  
+  if (!receipt.contractAddress) {
+    console.error("Deployment failed");
+    process.exit(1);
+  }
+  
+  console.log("\n=== Deployment Successful ===");
+  console.log("Contract:", receipt.contractAddress);
+  console.log("Block:", receipt.blockNumber.toString());
 
-  // Save deployment info
+  // Save files
   const deploymentInfo = {
     address: receipt.contractAddress,
     deployer: account.address,
@@ -284,6 +208,7 @@ contract ShadowReputation is Ownable, EIP712 {
     txHash: hash,
     blockNumber: receipt.blockNumber.toString(),
     timestamp: new Date().toISOString(),
+    chainId: 84532,
   };
 
   fs.writeFileSync(
@@ -291,15 +216,17 @@ contract ShadowReputation is Ownable, EIP712 {
     JSON.stringify(deploymentInfo, null, 2)
   );
 
-  // Save ABI
   fs.writeFileSync(
     path.join(__dirname, "../src/lib/reputation-abi.json"),
     JSON.stringify(abi, null, 2)
   );
 
-  console.log("\\nDeployment complete!");
-  console.log("Contract:", receipt.contractAddress);
-  console.log("\\nAdd to .env:");
+  fs.writeFileSync(
+    path.join(__dirname, "../contracts/ShadowReputation.verified.sol"),
+    SOURCE
+  );
+
+  console.log("\nAdd to .env:");
   console.log(`NEXT_PUBLIC_CONTRACT_ADDRESS=${receipt.contractAddress}`);
   console.log(`SIGNER_PRIVATE_KEY=${PRIVATE_KEY}`);
 }

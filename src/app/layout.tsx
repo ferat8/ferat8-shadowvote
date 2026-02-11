@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: "Social deduction game with onchain reputation. Find the impostors!",
   manifest: "/manifest.json",
   other: {
-    "base:app_id": "",
+    "base:app_id": "698c94b0ca7c92c3cb5bcbe7",
   },
 };
 

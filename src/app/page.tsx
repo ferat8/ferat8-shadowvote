@@ -152,10 +152,16 @@ export default function Home() {
           )}
         </div>
 
-        {/* Stats Link */}
-        <div className="mt-6 text-center">
+        {/* Navigation Links */}
+        <div className="mt-6 flex justify-center gap-6">
           <Link href="/stats" className="text-sv-accent hover:underline">
-            View Leaderboard
+            Leaderboard
+          </Link>
+          <Link href="/tournaments" className="text-yellow-400 hover:underline">
+            🏆 Tournaments
+          </Link>
+          <Link href="/achievements" className="text-green-400 hover:underline">
+            🎖️ Achievements
           </Link>
         </div>
 
@@ -172,12 +178,24 @@ export default function Home() {
               <p><strong className="text-white">Detective</strong> investigates one player per night</p>
             </div>
             <div className="flex gap-3">
+              <span className="text-blue-400">💉</span>
+              <p><strong className="text-white">Doctor</strong> protects one player from death each night</p>
+            </div>
+            <div className="flex gap-3">
+              <span className="text-yellow-400">🃏</span>
+              <p><strong className="text-white">Jester</strong> wins alone if voted out during the day</p>
+            </div>
+            <div className="flex gap-3">
+              <span className="text-purple-400">👑</span>
+              <p><strong className="text-white">Mayor</strong> their vote counts as 2</p>
+            </div>
+            <div className="flex gap-3">
               <span className="text-sv-citizen">🗳️</span>
               <p><strong className="text-white">Citizens</strong> vote during the day to find impostors</p>
             </div>
             <div className="flex gap-3">
               <span className="text-sv-gold">⭐</span>
-              <p><strong className="text-white">Win</strong> to earn onchain reputation</p>
+              <p><strong className="text-white">Win</strong> to earn onchain reputation & achievements</p>
             </div>
           </div>
         </div>

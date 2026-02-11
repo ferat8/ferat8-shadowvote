@@ -87,33 +87,77 @@ function NightPhase({
   onAction,
 }: {
   room: RoomState;
-  onAction: (targetId: string) => void;
+  onAction: (targetId: string, actionType: string) => void;
 }) {
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const alivePlayers = room.players.filter((p) => p.isAlive && p.id !== room.myId);
 
-  const getRoleAction = (): { title: string; description: string } => {
+  const getRoleAction = (): { title: string; description: string; actionType: string; actionLabel: string; icon: string } => {
     switch (room.myRole) {
       case "impostor":
         return {
           title: "Choose your target",
           description: "Select a player to eliminate tonight",
+          actionType: "kill",
+          actionLabel: "Eliminate",
+          icon: "🔪",
         };
       case "detective":
         return {
           title: "Investigate a player",
           description: "Choose someone to learn if they are an impostor",
+          actionType: "investigate",
+          actionLabel: "Investigate",
+          icon: "🔍",
+        };
+      case "doctor":
+        return {
+          title: "Protect a player",
+          description: "Choose someone to save from elimination tonight",
+          actionType: "protect",
+          actionLabel: "Protect",
+          icon: "💉",
+        };
+      case "jester":
+        return {
+          title: "Night falls...",
+          description: "Wait and plan your strategy to get voted out",
+          actionType: "",
+          actionLabel: "",
+          icon: "🃏",
+        };
+      case "mayor":
+        return {
+          title: "Night falls...",
+          description: "Your vote will count as 2 during the day",
+          actionType: "",
+          actionLabel: "",
+          icon: "👑",
         };
       default:
         return {
           title: "Night falls...",
           description: "Wait while others act in the darkness",
+          actionType: "",
+          actionLabel: "",
+          icon: "😴",
         };
     }
   };
 
   const action = getRoleAction();
-  const canAct = room.myRole === "impostor" || room.myRole === "detective";
+  const canAct = room.myRole === "impostor" || room.myRole === "detective" || room.myRole === "doctor";
+
+  const getRoleEmoji = (role: string) => {
+    switch (role) {
+      case "impostor": return "🔪";
+      case "detective": return "🔍";
+      case "doctor": return "💉";
+      case "jester": return "🃏";
+      case "mayor": return "👑";
+      default: return "👤";
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -123,7 +167,7 @@ function NightPhase({
         <p className="text-gray-400">{action.description}</p>
         {room.myRole && (
           <p className={`mt-2 text-lg font-semibold role-${room.myRole}`}>
-            You are the {room.myRole.charAt(0).toUpperCase() + room.myRole.slice(1)}
+            {getRoleEmoji(room.myRole)} You are the {room.myRole.charAt(0).toUpperCase() + room.myRole.slice(1)}
           </p>
         )}
       </div>
@@ -137,7 +181,9 @@ function NightPhase({
                 onClick={() => setSelectedTarget(player.id)}
                 className={`p-4 rounded-lg border-2 transition-all ${
                   selectedTarget === player.id
-                    ? "border-sv-accent bg-sv-accent/20"
+                    ? room.myRole === "doctor" 
+                      ? "border-blue-500 bg-blue-500/20"
+                      : "border-sv-accent bg-sv-accent/20"
                     : "border-gray-700 bg-sv-dark hover:border-gray-500"
                 }`}
               >
@@ -147,18 +193,23 @@ function NightPhase({
           </div>
 
           <button
-            onClick={() => selectedTarget && onAction(selectedTarget)}
+            onClick={() => selectedTarget && onAction(selectedTarget, action.actionType)}
             disabled={!selectedTarget}
-            className="w-full py-4 bg-sv-red hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
+            className={`w-full py-4 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors ${
+              room.myRole === "doctor" 
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-sv-red hover:bg-red-600"
+            }`}
           >
-            {room.myRole === "impostor" ? "Eliminate" : "Investigate"}
+            {action.icon} {action.actionLabel}
           </button>
         </>
       )}
 
       {!canAct && (
-        <div className="flex items-center justify-center h-48">
-          <div className="animate-pulse-slow text-gray-500">
+        <div className="flex flex-col items-center justify-center h-48 gap-4">
+          <div className="text-4xl">{action.icon}</div>
+          <div className="animate-pulse-slow text-gray-500 text-center">
             The night is dark and full of terrors...
           </div>
         </div>
@@ -335,9 +386,11 @@ function EndPhase({ room }: { room: RoomState }) {
     args: room.gameId && address ? [room.gameId as `0x${string}`, address] : undefined,
   });
 
-  const isWinner = room.winnerTeam === "citizens"
-    ? room.myRole !== "impostor"
-    : room.myRole === "impostor";
+  const isWinner = room.winnerTeam === "jester"
+    ? room.myRole === "jester"
+    : room.winnerTeam === "citizens"
+      ? room.myRole !== "impostor" && room.myRole !== "jester"
+      : room.myRole === "impostor";
 
   const fetchClaimData = async () => {
     if (!address || !room.gameId) return;
@@ -389,7 +442,11 @@ function EndPhase({ room }: { room: RoomState }) {
       <div className="text-center">
         <div className="text-6xl mb-4">{isWinner ? "🏆" : "💀"}</div>
         <h2 className="text-3xl font-bold mb-2">
-          {room.winnerTeam === "citizens" ? "Citizens Win!" : "Impostors Win!"}
+          {room.winnerTeam === "jester" 
+            ? "🃏 Jester Wins!" 
+            : room.winnerTeam === "citizens" 
+              ? "Citizens Win!" 
+              : "Impostors Win!"}
         </h2>
         <p className="text-gray-400">
           {isWinner ? "Congratulations!" : "Better luck next time!"}
@@ -529,8 +586,7 @@ export default function RoomPage() {
     });
   };
 
-  const handleAction = async (targetId: string) => {
-    const actionType = room?.myRole === "impostor" ? "kill" : "investigate";
+  const handleAction = async (targetId: string, actionType: string) => {
     await fetch(`/api/room/${roomId}/action`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

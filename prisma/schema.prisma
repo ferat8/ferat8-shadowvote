@@ -103,3 +103,96 @@ model ClaimLog {
 
   @@unique([gameId, wallet])
 }
+
+// Tournament System
+model Tournament {
+  id            String   @id @default(cuid())
+  name          String
+  status        String   @default("registration") // registration, active, completed
+  maxPlayers    Int      @default(16)
+  prizePool     Int      @default(0) // in shards/rep
+  startTime     DateTime?
+  endTime       DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  participants  TournamentPlayer[]
+  matches       TournamentMatch[]
+}
+
+model TournamentPlayer {
+  id            String   @id @default(cuid())
+  tournamentId  String
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  wallet        String
+  nickname      String
+  seed          Int?     // Seeding position
+  eliminated    Boolean  @default(false)
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  joinedAt      DateTime @default(now())
+
+  @@unique([tournamentId, wallet])
+  @@index([tournamentId])
+}
+
+model TournamentMatch {
+  id            String   @id @default(cuid())
+  tournamentId  String
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  round         Int      // 1 = finals, 2 = semis, etc
+  matchNumber   Int
+  roomId        String?  // Link to actual game room
+  player1Wallet String?
+  player2Wallet String?
+  winnerWallet  String?
+  status        String   @default("pending") // pending, active, completed
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+
+  @@index([tournamentId, round])
+}
+
+// Player Stats for Anti-Cheat and Achievements
+model PlayerStats {
+  id              String   @id @default(cuid())
+  wallet          String   @unique
+  gamesPlayed     Int      @default(0)
+  gamesWon        Int      @default(0)
+  killsAsImpostor Int      @default(0)
+  savesAsDoctor   Int      @default(0)
+  correctDetects  Int      @default(0)
+  jesterWins      Int      @default(0)
+  mayorWins       Int      @default(0)
+  surviveStreak   Int      @default(0)
+  maxSurviveStreak Int     @default(0)
+  flagCount       Int      @default(0) // Anti-cheat flags
+  lastGameAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Anti-Cheat Logs
+model AntiCheatLog {
+  id          String   @id @default(cuid())
+  wallet      String
+  roomId      String
+  flagType    String   // fast_vote, collusion, spam, etc
+  severity    Int      @default(1) // 1-5
+  details     String   // JSON details
+  createdAt   DateTime @default(now())
+
+  @@index([wallet])
+  @@index([roomId])
+}
+
+// Vote Pattern Analysis
+model VotePattern {
+  id          String   @id @default(cuid())
+  wallet      String
+  targetWallet String
+  voteCount   Int      @default(1)
+  lastVoteAt  DateTime @default(now())
+
+  @@unique([wallet, targetWallet])
+  @@index([wallet])
+}

@@ -43,6 +43,10 @@ export async function POST(
       return NextResponse.json({ error: "Only detective can investigate" }, { status: 403 });
     }
 
+    if (actionType === "protect" && player.role !== "doctor") {
+      return NextResponse.json({ error: "Only doctor can protect" }, { status: 403 });
+    }
+
     // Validate target
     if (targetId) {
       const target = await prisma.player.findFirst({
